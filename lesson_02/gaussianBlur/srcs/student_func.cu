@@ -102,8 +102,27 @@
 
 #include "utils.h"
 
-__global__
-void gaussian_blur(const unsigned char* const inputChannel,
+__device__ int getIndex(void)
+{
+	int index_x = blockIdx.x * blockDim.x + threadIdx.x;
+	int index_y = blockIdx.y * blockDim.y + threadIdx.y;
+
+	int grid_width = gridDim.x * blockDim.x;
+	int index = index_y * grid_width + index_x;
+	return (index);
+}
+
+__device__ int getX(void)
+{
+	return (blockIdx.x * blockDim.x + threadIdx.x);
+}
+
+__device__ int getY(void)
+{
+	return (blockIdx.y * blockDim.y + threadIdx.y);
+}
+
+__global__ void gaussian_blur(const unsigned char* const inputChannel,
                    unsigned char* const outputChannel,
                    int numRows, int numCols,
                    const float* const filter, const int filterWidth)
@@ -133,8 +152,7 @@ void gaussian_blur(const unsigned char* const inputChannel,
 
 //This kernel takes in an image represented as a uchar4 and splits
 //it into three images consisting of only one color channel each
-__global__
-void separateChannels(const uchar4* const inputImageRGBA,
+__global__ void separateChannels(const uchar4* const inputImageRGBA,
                       int numRows,
                       int numCols,
                       unsigned char* const redChannel,
@@ -152,13 +170,21 @@ void separateChannels(const uchar4* const inputImageRGBA,
   // {
   //     return;
   // }
+	int	thrdX = getX();
+	int thrdY = getY();
+
+	if (thrdX >= numCols || thrdY >= numRows)
+		return ;
+	int imgIdx = thrdY * numCols + thrdX;
+	redChannel[imgIdx] = inputImageRGBA[imgIdx].x;
+	greenChannel[imgIdx] = inputImageRGBA[imgIdx].y;
+	blueChannel[imgIdx] = inputImageRGBA[imgIdx].z;
 }
 
 //This kernel takes in three color channels and recombines them
 //into one image.  The alpha channel is set to 255 to represent
 //that this image has no transparency.
-__global__
-void recombineChannels(const unsigned char* const redChannel,
+__global__ void recombineChannels(const unsigned char* const redChannel,
                        const unsigned char* const greenChannel,
                        const unsigned char* const blueChannel,
                        uchar4* const outputImageRGBA,
@@ -221,15 +247,15 @@ void your_gaussian_blur(const uchar4 * const h_inputImageRGBA, uchar4 * const d_
                         const int filterWidth)
 {
   //TODO: Set reasonable block size (i.e., number of threads per block)
-  const dim3 blockSize;
+	const dim3 blockSize(32, 32, 1);
 
   //TODO:
   //Compute correct grid size (i.e., number of blocks per kernel launch)
   //from the image size and and block size.
-  const dim3 gridSize;
+  const dim3 gridSize(numCols / blockSize.x + 1, numRows / blockSize.y + 1, 1);
 
   //TODO: Launch a kernel for separating the RGBA image into different color channels
-
+  separateChannels <<< gridSize, blockSize >>> (d_inputImageRGBA, numRows, numCols, d_redBlurred, d_greenBlurred, d_blueBlurred);
   // Call cudaDeviceSynchronize(), then call checkCudaErrors() immediately after
   // launching your kernel to make sure that you didn't make any mistakes.
   cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
