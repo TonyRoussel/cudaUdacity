@@ -100,7 +100,6 @@
 
 //****************************************************************************
 
-#include "reference_calc.cpp"
 #include "utils.h"
 
 __global__
@@ -252,6 +251,7 @@ void your_gaussian_blur(const uchar4 * const h_inputImageRGBA, uchar4 * const d_
                                              numRows,
                                              numCols);
   cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
+
 }
 
 
